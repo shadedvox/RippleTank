@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<style>
+    body {margin:0 ; background: #000}
+    canvas {width: 100vw; height: 100vh ; display:block; touch-action: none}
+</style>
+<canvas id="rippleCanvas"></canvas>
+<script>
+    const ctx = rippleCanvas.getContext('2d');
+    const h = 200;
+    let w,img,down,ac;
+    const srcs = [];
+    function resize(){
+        w = Math.round(h*innerWidth/innerHeight);
+        rippleCanvas.width = w;
+        rippleCanvas.height = h;
+        img = ctx.createImageData(w,h);}
+    resize();
+    onresize = resize;
+    rippleCanvas.onpointerdown = e => {down = {time : performance.now(), x: e.clientX, y: e.clientY};}
+    rippleCanvas.onpointerup = () => {
+        if (!down) return;
+        if (srcs.length >= 8) return;
+        const holdtime = Math.min((performance.now() - down.time)/1000,3);
+        ac = ac || new AudioContext();
+        if (ac.state === 'suspended') ac.resume();
+        const wd = 0.3/(1+holdtime*2);
+        const osc = ac.createOscillator();
+        const gain = ac.createGain();
+        osc.frequency.value = 120 * 2 ** (wd*8);
+        gain.gain.value = 0;
+        osc.connect(gain).connect(ac.destination);
+        osc.start();
+        srcs.push({
+            x: down.x/innerWidth*w,
+            y: down.y/innerHeight*h,
+            wd,
+            sp: 0.02 + holdtime * 0.03,
+            rad: 10 - holdtime * 3,
+            birth: performance.now(),
+            tol: (10 + holdtime * 3.33333)*1000,
+            ampT: 0,
+            osc,
+            gain});
+        down = null;}
+    function frame(t){
+        for (let i = 0; i < srcs.length; i++){
+            const s = srcs[i];
+            const age = t - s.birth;
+            s.ampT = Math.exp(-5 / (s.tol / 2) * Math.max(0, age - s.tol / 2));
+            if (s.ampT < 0.01){
+                s.osc.stop();
+                s.osc.disconnect();
+                s.gain.disconnect();
+                srcs.splice(i,1);
+                continue;}
+            s.gain.gain.setTargetAtTime(s.ampT * 0.05, ac.currentTime, 0.05);}
+        let R = 4;
+        for (let i = 0; i < w*h ; i++) {
+            const x = i % w;
+            const y = Math.floor(i/w);
+            let v = 0;
+            let glow = 0;
+            let ampD = 1;
+            for (const s of srcs){
+                const d = Math.hypot(x-s.x, y-s.y);
+                const blob = Math.exp(-d*d / (2*R*R))
+                glow = Math.max(glow, blob*s.ampT);
+                ampD *= Math.exp(-d*s.rad/1500);
+                v += s.ampT*ampD*Math.sin(s.wd*(d-t*s.sp));
+                ampD = 1;}
+            v = v/Math.sqrt (Math.max(1,srcs.length));
+            const b = 50 + 127*v;
+            img.data.set([255*glow, b+(255-b)*glow, b+(255-b)*glow, 255],i*4);}
+        ctx.putImageData(img,0,0);
+        requestAnimationFrame(frame);}
+    requestAnimationFrame(frame);
+</script>
