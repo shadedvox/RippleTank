@@ -29,3 +29,7 @@ data:text/html,<style>body{margin:0;background:black}canvas{width:100vw;height:1
 - `h` is the canvas height in pixels. Raise it for sharper rings, lower it if it lags.
 - `0.05` in the gain line is the volume per ripple.
 - The hold time is capped at 3 seconds.
+
+---
+
+*© 2026 Atharva Chauhan, Vox*
